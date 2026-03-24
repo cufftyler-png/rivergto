@@ -23,6 +23,7 @@ const STORAGE_KEY = "rivergto_saved_spots_v1";
 const BRAND = "#22D3EE";
 const BRAND_2 = "#8B5CF6";
 const BG = "#020617";
+
 const API_BASE_URL =
   (typeof import.meta !== "undefined" &&
     import.meta.env &&
