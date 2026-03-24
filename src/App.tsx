@@ -25,12 +25,12 @@ const BRAND_2 = "#8B5CF6";
 const BG = "#020617";
 
 const SEAT_POS: Record<string, { left: string; top: string }> = {
-  UTG: { left: "50%", top: "10%" },
-  HJ: { left: "80%", top: "30%" },
-  CO: { left: "80%", top: "70%" },
-  BTN: { left: "50%", top: "90%" },
-  SB: { left: "20%", top: "70%" },
-  BB: { left: "20%", top: "30%" },
+  UTG: { left: "50%", top: "8%" },
+  HJ: { left: "84%", top: "28%" },
+  CO: { left: "84%", top: "72%" },
+  BTN: { left: "50%", top: "88%" },
+  SB: { left: "16%", top: "72%" },
+  BB: { left: "16%", top: "28%" },
 };
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
@@ -187,8 +187,8 @@ function Card({
       onClick={onClick}
       disabled={disabled}
       style={{
-        width: 52,
-        height: 74,
+        width: 48,
+        height: 68,
         borderRadius: 14,
         background: faceDown ? "#1e293b" : "#0f172a",
         border: "1px solid #475569",
@@ -206,7 +206,7 @@ function Card({
       ) : card ? (
         <>
           <div style={{ fontWeight: 700 }}>{card[0]}</div>
-          <div style={{ fontSize: 22 }}>{suitSymbol[card[1]]}</div>
+          <div style={{ fontSize: 20 }}>{suitSymbol[card[1]]}</div>
         </>
       ) : (
         <div style={{ color: "#94a3b8", fontSize: 12 }}>Pick</div>
@@ -320,6 +320,7 @@ function Seat({
   villainPos,
   onDrop,
   onDragOver,
+  onSeatDragStart,
   heroCards,
   villainCards,
   call,
@@ -331,6 +332,47 @@ function Seat({
   const isVillain = pos === villainPos;
   const cards = isHero ? heroCards : isVillain ? villainCards : [];
 
+  const seatFill = isHero ? BRAND : isVillain ? "#ef4444" : "#0f172a";
+  const seatLabel = isHero ? "Hero" : isVillain ? "Villain" : "";
+
+  const layoutMap: Record<
+    string,
+    {
+      cardMarginTop?: number;
+      cardMarginBottom?: number;
+      betMarginTop?: number;
+      betMarginBottom?: number;
+      sideOffset?: number;
+    }
+  > = {
+    UTG: { cardMarginTop: 10, betMarginTop: 8 },
+    HJ: { cardMarginTop: 10, betMarginTop: 8, sideOffset: 18 },
+    CO: { cardMarginBottom: 10, betMarginTop: 8, sideOffset: 18 },
+    BTN: { cardMarginBottom: 10, betMarginTop: 8 },
+    SB: { cardMarginBottom: 10, betMarginTop: 8, sideOffset: -18 },
+    BB: { cardMarginTop: 10, betMarginTop: 8, sideOffset: -18 },
+  };
+
+  const layout = layoutMap[pos] || {};
+  const cardBlockStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: layout.cardMarginTop ?? 8,
+    marginBottom: layout.cardMarginBottom ?? 0,
+    position: "relative",
+    left: layout.sideOffset ?? 0,
+    zIndex: 3,
+  };
+
+  const betBlockStyle: React.CSSProperties = {
+    marginTop: layout.betMarginTop ?? 8,
+    marginBottom: layout.betMarginBottom ?? 0,
+    position: "relative",
+    left: layout.sideOffset ?? 0,
+    zIndex: 3,
+  };
+
   return (
     <div
       onDrop={() => onDrop(pos)}
@@ -340,15 +382,24 @@ function Seat({
         transform: "translate(-50%, -50%)",
         ...seat,
         textAlign: "center",
+        width: 140,
+        pointerEvents: "auto",
+        zIndex: 2,
       }}
     >
       <div style={{ marginBottom: 6, fontSize: 12 }}>{pos}</div>
+
       <div
+        draggable={isHero || isVillain}
+        onDragStart={() => {
+          if (isHero) onSeatDragStart("Hero");
+          if (isVillain) onSeatDragStart("Villain");
+        }}
         style={{
           width: 66,
           height: 66,
           borderRadius: "50%",
-          background: isHero ? BRAND : isVillain ? "#ef4444" : "#0f172a",
+          background: seatFill,
           border: "2px dashed rgba(255,255,255,0.25)",
           display: "flex",
           alignItems: "center",
@@ -356,13 +407,16 @@ function Seat({
           color: "white",
           fontWeight: 700,
           margin: "0 auto",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
+          cursor: isHero || isVillain ? "grab" : "default",
+          userSelect: "none",
         }}
       >
-        {isHero ? "Hero" : isVillain ? "Villain" : ""}
+        {seatLabel}
       </div>
 
       {cards.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 8 }}>
+        <div style={cardBlockStyle}>
           {cards.map((c: string, i: number) => (
             <Card key={i} card={c} faceDown={isVillain && hideVillainCards} />
           ))}
@@ -370,20 +424,21 @@ function Seat({
       )}
 
       {(isHero || isVillain) && (
-        <input
-          value={call}
-          onChange={(e) => setCall(Number(e.target.value) || 0)}
-          style={{
-            width: 70,
-            marginTop: 8,
-            borderRadius: 999,
-            border: "1px solid #475569",
-            background: "#111827",
-            color: "white",
-            textAlign: "center",
-            padding: "6px 10px",
-          }}
-        />
+        <div style={betBlockStyle}>
+          <input
+            value={call}
+            onChange={(e) => setCall(Number(e.target.value) || 0)}
+            style={{
+              width: 74,
+              borderRadius: 999,
+              border: "1px solid #475569",
+              background: "#111827",
+              color: "white",
+              textAlign: "center",
+              padding: "6px 10px",
+            }}
+          />
+        </div>
       )}
     </div>
   );
@@ -454,6 +509,10 @@ export default function App() {
       setVillainPos(pos);
     }
     setDrag(null);
+  }
+
+  function onSeatDragStart(role: "Hero" | "Villain") {
+    setDrag(role);
   }
 
   function pickHero(index: number, card: string) {
@@ -587,15 +646,13 @@ export default function App() {
               <div>
                 <div style={{ fontSize: 24, fontWeight: 700 }}>Interactive table</div>
                 <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 6 }}>
-                  Drag and drop the Hero and Villain tokens onto seats. Choose the street and cards, then run the solve.
+                  Drag the actual Hero and Villain chips on the table to new seats.
                 </div>
               </div>
               <button onClick={runSolve} style={pill(true)}>Run Solve</button>
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-              <div draggable onDragStart={() => setDrag("Hero")} style={{ ...pill(true), cursor: "grab" }}>Hero token</div>
-              <div draggable onDragStart={() => setDrag("Villain")} style={{ ...pill(false), background: "#7f1d1d", cursor: "grab" }}>Villain token</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
               {REACTIONS.map((r) => (
                 <button key={r} onClick={() => setReaction(r)} style={pill(reaction === r)}>{r}</button>
               ))}
@@ -615,8 +672,18 @@ export default function App() {
               </button>
             </div>
 
-            <div style={{ position: "relative", height: 540, borderRadius: 220, background: "radial-gradient(circle, #166534, #052e16)", overflow: "hidden" }}>
+            <div
+              style={{
+                position: "relative",
+                height: 700,
+                borderRadius: 260,
+                background: "radial-gradient(circle, #166534, #052e16)",
+                overflow: "visible",
+                paddingBottom: 40,
+              }}
+            >
               <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: "74%", height: "70%", borderRadius: 999, border: "1px solid rgba(255,255,255,0.08)" }} />
+
               {POSITIONS.map((pos) => (
                 <Seat
                   key={pos}
@@ -625,6 +692,7 @@ export default function App() {
                   villainPos={villainPos}
                   onDrop={onDrop}
                   onDragOver={(e: any) => e.preventDefault()}
+                  onSeatDragStart={onSeatDragStart}
                   heroCards={heroCards}
                   villainCards={villainCards}
                   call={call}
@@ -633,7 +701,15 @@ export default function App() {
                 />
               ))}
 
-              <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -54%)", textAlign: "center" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -58%)",
+                  textAlign: "center",
+                }}
+              >
                 <div style={{ padding: 14, borderRadius: 24, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.22)", minWidth: 120 }}>
                   <div style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", color: "#fde68a" }}>Pot</div>
                   <input
@@ -703,6 +779,12 @@ export default function App() {
             </Panel>
           </div>
         </div>
+
+        {result?.error && (
+          <div style={{ ...softPanelStyle(), color: "#f87171", marginBottom: 22 }}>
+            Backend error: {result.error}
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 22 }}>
           <Metric title="Recommendation" value={result?.recommendation || "-"} />
