@@ -10,25 +10,21 @@ const allowedOrigins = [
   "https://www.rivergto.com",
 ];
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      // allow no-origin requests like health checks / curl / server-to-server
-      if (!origin) return callback(null, true);
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
 
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+};
 
-app.options("*", cors());
-
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/", (_req, res) => {
