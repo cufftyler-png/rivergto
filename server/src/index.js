@@ -8,23 +8,21 @@ const allowedOrigins = [
   "http://localhost:5173",
   "https://rivergto.com",
   "https://www.rivergto.com",
+  "https://rivergto.vercel.app"
 ];
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"]
+  })
+);
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
-};
-
-app.use(cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/", (_req, res) => {
