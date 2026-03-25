@@ -24,11 +24,7 @@ const BRAND = "#22D3EE";
 const BRAND_2 = "#8B5CF6";
 const BG = "#020617";
 
-const API_BASE_URL =
-  (typeof import.meta !== "undefined" &&
-    import.meta.env &&
-    import.meta.env.VITE_API_BASE_URL) ||
-  "https://rivergto.onrender.com";
+const API_BASE_URL = "https://rivergto.onrender.com";
 
 const SEAT_POS: Record<string, { left: string; top: string }> = {
   UTG: { left: "50%", top: "8%" },
