@@ -348,16 +348,10 @@ function ActionMixStackedBar({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "white",
-              fontWeight: 700,
-              fontSize: 12,
-              minWidth: item.pct > 0 ? 28 : 0,
-              whiteSpace: "nowrap",
+              minWidth: item.pct > 0 ? 18 : 0,
             }}
             title={`${item.action}: ${item.pct}%`}
-          >
-            {item.pct >= 6 ? `${item.pct}%` : ""}
-          </div>
+          />
         ))}
       </div>
 
@@ -438,6 +432,63 @@ function RangeMatrix({ reaction }: { reaction: string }) {
         })
       )}
     </div>
+  );
+}
+
+function ModeSwitch({
+  hideVillainCards,
+  onToggle,
+}: {
+  hideVillainCards: boolean;
+  onToggle: () => void;
+}) {
+  const nextLabel = hideVillainCards ? "Use exact villain cards" : "Use range solve";
+
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "7px 12px",
+        borderRadius: 999,
+        border: "1px solid #475569",
+        background: "#111827",
+        color: "white",
+        cursor: "pointer",
+        fontWeight: 700,
+        fontSize: 13,
+      }}
+      title={nextLabel}
+    >
+      <span>{nextLabel}</span>
+      <span
+        style={{
+          width: 44,
+          height: 24,
+          borderRadius: 999,
+          background: hideVillainCards ? `linear-gradient(135deg, ${BRAND}, ${BRAND_2})` : "#334155",
+          position: "relative",
+          transition: "background 140ms ease",
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: hideVillainCards ? 23 : 3,
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: "white",
+            transition: "left 140ms ease",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+          }}
+        />
+      </span>
+    </button>
   );
 }
 
@@ -899,56 +950,12 @@ export default function App() {
 
         <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 16, marginBottom: 16 }}>
           <div style={softPanelStyle()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>Interactive table</div>
-                <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
-                  Drag Hero and Villain to their seats, set the street and stack pressure, then run the solve.
-                </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>Interactive table</div>
+              <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
+                Drag Hero and Villain to their seats, choose the decision point, and shape the pot before you solve.
               </div>
-              <button
-                onClick={runSolve}
-                disabled={isSolving}
-                onMouseEnter={() => setSolveHover(true)}
-                onMouseLeave={() => {
-                  setSolveHover(false);
-                  setSolvePress(false);
-                }}
-                onMouseDown={() => setSolvePress(true)}
-                onMouseUp={() => setSolvePress(false)}
-                style={solveButtonStyle}
-              >
-                {isSolving ? "Solving..." : "Run Solve"}
-              </button>
             </div>
-
-            {isSolving && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 6 }}>
-                  Running the sim and weighting the range tree...
-                </div>
-                <div
-                  style={{
-                    width: "100%",
-                    height: 10,
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,0.08)",
-                    overflow: "hidden",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${solveProgress}%`,
-                      height: "100%",
-                      borderRadius: 999,
-                      background: `linear-gradient(90deg, ${BRAND}, ${BRAND_2})`,
-                      transition: "width 140ms ease",
-                    }}
-                  />
-                </div>
-              </div>
-            )}
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
               {REACTIONS.map((r) => (
@@ -959,7 +966,7 @@ export default function App() {
             </div>
 
             <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
-              Choose the node you are studying. For example, a 3-bet node means you are solving the response after the re-raise.
+              Pick the node you want to study. A 3-bet node, for example, looks at the strategy after the re-raise appears.
             </div>
 
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
@@ -973,13 +980,14 @@ export default function App() {
               {!hideVillainCards && (
                 <button onClick={randomizeVillain} style={pill(false)}>Randomize villain</button>
               )}
-              <button onClick={() => setHideVillainCards((v) => !v)} style={pill(hideVillainCards)}>
-                {hideVillainCards ? "Use range solve" : "Use exact villain cards"}
-              </button>
+              <ModeSwitch
+                hideVillainCards={hideVillainCards}
+                onToggle={() => setHideVillainCards((v) => !v)}
+              />
             </div>
 
             <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
-              Use range solve when you want a more realistic in-game read and exact cards when you want to inspect one specific holding.
+              Range solve mirrors real play by hiding exact villain holdings, while exact mode lets you inspect one specific combo.
             </div>
 
             <div
@@ -990,6 +998,7 @@ export default function App() {
                 background: "radial-gradient(circle, #166534, #052e16)",
                 overflow: "visible",
                 paddingBottom: 24,
+                marginBottom: 12,
               }}
             >
               <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: "74%", height: "70%", borderRadius: 999, border: "1px solid rgba(255,255,255,0.08)" }} />
@@ -1030,7 +1039,7 @@ export default function App() {
                   />
                 </div>
                 <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 8 }}>
-                  Community cards update by street, so pre-flop stays clean and later streets fill in naturally.
+                  Community cards follow the street you picked, so the board stays faithful to the hand state.
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
                   {board.slice(0, visibleBoardSlots).map((c, i) => (
@@ -1039,6 +1048,54 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: isSolving ? 10 : 0 }}>
+              <div style={{ color: "#cbd5e1", fontSize: 12 }}>
+                Run the sim once your spot looks right. The outputs below will update from this exact setup.
+              </div>
+              <button
+                onClick={runSolve}
+                disabled={isSolving}
+                onMouseEnter={() => setSolveHover(true)}
+                onMouseLeave={() => {
+                  setSolveHover(false);
+                  setSolvePress(false);
+                }}
+                onMouseDown={() => setSolvePress(true)}
+                onMouseUp={() => setSolvePress(false)}
+                style={solveButtonStyle}
+              >
+                {isSolving ? "Solving..." : "Run Solve"}
+              </button>
+            </div>
+
+            {isSolving && (
+              <div>
+                <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 6 }}>
+                  Running the sim and weighting the strategy tree...
+                </div>
+                <div
+                  style={{
+                    width: "100%",
+                    height: 10,
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.08)",
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${solveProgress}%`,
+                      height: "100%",
+                      borderRadius: 999,
+                      background: `linear-gradient(90deg, ${BRAND}, ${BRAND_2})`,
+                      transition: "width 140ms ease",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gap: 12 }}>
@@ -1077,11 +1134,11 @@ export default function App() {
               visibleSlots={visibleBoardSlots}
             />
 
-            <Panel title="Range matrix" comment="This is a compact range map so you can quickly see which holdings stay live at the current node.">
+            <Panel title="Range matrix" comment="Use this as a quick visual guide to which combos stay active at the node you selected.">
               <RangeMatrix reaction={rangeMatrix} />
             </Panel>
 
-            <Panel title="Save / Load hands" comment="Save a study spot when you want to revisit a line later or compare a few branches side by side.">
+            <Panel title="Save / Load hands" comment="Save a study spot when you want to revisit a branch later or compare a few similar lines.">
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input
                   value={savedName}
@@ -1115,7 +1172,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Panel title="Bet-size-specific outputs" comment="These percentages show how your strategy mix shifts as the sizing changes.">
+          <Panel title="Bet-size-specific outputs" comment="These frequencies show how your strategy mix shifts as the sizing changes.">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 12 }}>
               {(result?.betSizes || BET_SIZES.map((x) => ({ action: `${x}%`, freq: 0 }))).map((item: any) => (
                 <div key={item.action} style={{ padding: 12, borderRadius: 18, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1140,7 +1197,7 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="Action mix and outcomes" comment="The bar is normalized to exactly 100%, while the legend keeps the action names clean and easy to scan.">
+          <Panel title="Action mix and outcomes" comment="Read the color bar as your strategic blend, then use the key below it to identify each action.">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <ActionMixStackedBar actionMix={result?.actionMix || []} />
@@ -1162,7 +1219,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Panel title="Convergence" comment="This gives you a feel for whether the sim has stabilized or still has room to settle.">
+          <Panel title="Convergence" comment="This helps you see whether the equity estimate has settled or still has room to tighten up.">
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.convergence || []}>
@@ -1191,7 +1248,7 @@ export default function App() {
           </Panel>
         </div>
 
-        <Panel title="Multi-player tree preview" comment="This preview helps newer players understand how the line likely developed before the current decision.">
+        <Panel title="Multi-player tree preview" comment="This preview helps newer players understand how the action likely developed before the current decision.">
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {(result?.multiTree || []).map((step: string, i: number) => (
               <div key={i} style={{ ...pill(false), background: "rgba(255,255,255,0.06)" }}>
