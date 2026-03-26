@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -151,7 +151,7 @@ function cardColor(card: string, faceDown = false) {
 
 function pill(active: boolean): React.CSSProperties {
   return {
-    padding: "10px 18px",
+    padding: "8px 15px",
     borderRadius: 999,
     border: active ? `2px solid ${BRAND}` : "1px solid #475569",
     background: active
@@ -160,13 +160,14 @@ function pill(active: boolean): React.CSSProperties {
     color: active ? "#04111d" : "white",
     cursor: "pointer",
     fontWeight: 700,
+    fontSize: 13,
   };
 }
 
 function softPanelStyle(): React.CSSProperties {
   return {
-    padding: 22,
-    borderRadius: 28,
+    padding: 16,
+    borderRadius: 22,
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
   };
@@ -188,9 +189,9 @@ function Card({
       onClick={onClick}
       disabled={disabled}
       style={{
-        width: 48,
-        height: 68,
-        borderRadius: 14,
+        width: 44,
+        height: 62,
+        borderRadius: 12,
         background: faceDown ? "#1e293b" : "#0f172a",
         border: "1px solid #475569",
         display: "flex",
@@ -200,17 +201,18 @@ function Card({
         color: cardColor(card || "", faceDown),
         cursor: disabled ? "not-allowed" : onClick ? "pointer" : "default",
         opacity: disabled ? 0.5 : 1,
+        fontSize: 12,
       }}
     >
       {faceDown ? (
-        <div style={{ fontSize: 18 }}>🂠</div>
+        <div style={{ fontSize: 16 }}>🂠</div>
       ) : card ? (
         <>
           <div style={{ fontWeight: 700 }}>{card[0]}</div>
-          <div style={{ fontSize: 20 }}>{suitSymbol[card[1]]}</div>
+          <div style={{ fontSize: 18 }}>{suitSymbol[card[1]]}</div>
         </>
       ) : (
-        <div style={{ color: "#94a3b8", fontSize: 12 }}>Pick</div>
+        <div style={{ color: "#94a3b8", fontSize: 11 }}>Pick</div>
       )}
     </button>
   );
@@ -248,6 +250,197 @@ function setCardNoDupes(
   return next;
 }
 
+function comboLabel(i: number, j: number) {
+  const r1 = RANKS[i];
+  const r2 = RANKS[j];
+  if (i === j) return `${r1}${r2}`;
+  if (i < j) return `${r1}${r2}s`;
+  return `${r2}${r1}o`;
+}
+
+function getRangeWeight(label: string, reaction: string) {
+  const premium = ["AA", "KK", "QQ", "AKs", "AKo", "AQs"];
+  const strong = ["JJ", "TT", "99", "AJs", "KQs", "AQo", "KQo", "QJs"];
+  const playable = ["88", "77", "ATs", "KJs", "QTs", "JTs", "T9s", "98s", "AJo"];
+
+  let base = 0.02;
+  if (premium.includes(label)) base = 0.95;
+  else if (strong.includes(label)) base = 0.68;
+  else if (playable.includes(label)) base = 0.38;
+  else if (label.includes("s")) base = 0.16;
+  else if (label.endsWith("o")) base = 0.08;
+  else if (label.length === 2) base = 0.22;
+
+  if (reaction === "3-Bet") base *= 0.72;
+  if (reaction === "4-Bet") base *= 0.42;
+  if (reaction === "5-Bet") base *= 0.25;
+
+  return Math.max(0, Math.min(1, Number(base.toFixed(2))));
+}
+
+function rangeColor(weight: number) {
+  if (weight >= 0.8) return "rgba(34,211,238,0.95)";
+  if (weight >= 0.55) return "rgba(59,130,246,0.9)";
+  if (weight >= 0.3) return "rgba(139,92,246,0.82)";
+  if (weight >= 0.12) return "rgba(34,197,94,0.65)";
+  return "rgba(255,255,255,0.06)";
+}
+
+function buildNormalizedActionMix(actionMix: { action: string; freq: number }[] = []) {
+  if (!actionMix.length) return [];
+
+  const total = actionMix.reduce((sum, item) => sum + (item.freq || 0), 0);
+  if (total <= 0) {
+    return actionMix.map((item) => ({ ...item, pct: 0 }));
+  }
+
+  const normalized = actionMix.map((item) => ({
+    ...item,
+    pct: Number(((item.freq / total) * 100).toFixed(1)),
+  }));
+
+  const currentTotal = normalized.reduce((sum, item) => sum + item.pct, 0);
+  const diff = Number((100 - currentTotal).toFixed(1));
+
+  if (normalized.length > 0 && diff !== 0) {
+    normalized[normalized.length - 1].pct = Number(
+      (normalized[normalized.length - 1].pct + diff).toFixed(1)
+    );
+  }
+
+  return normalized;
+}
+
+function actionColor(action: string) {
+  if (action === "Fold") return "#ef4444";
+  if (action === "Call" || action === "Check") return "#22c55e";
+  if (action === "Raise") return "#8B5CF6";
+  if (action.includes("%")) return "#22D3EE";
+  return "#64748b";
+}
+
+function ActionMixStackedBar({
+  actionMix,
+}: {
+  actionMix: { action: string; freq: number }[];
+}) {
+  const normalized = buildNormalizedActionMix(actionMix);
+
+  return (
+    <div>
+      <div
+        style={{
+          width: "100%",
+          height: 48,
+          borderRadius: 999,
+          overflow: "hidden",
+          display: "flex",
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        {normalized.map((item, index) => (
+          <div
+            key={`${item.action}-${index}`}
+            style={{
+              width: `${item.pct}%`,
+              background: actionColor(item.action),
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              fontWeight: 700,
+              fontSize: 12,
+              minWidth: item.pct > 0 ? 38 : 0,
+              whiteSpace: "nowrap",
+            }}
+            title={`${item.action}: ${item.pct}%`}
+          >
+            {item.pct >= 8 ? `${item.action} ${item.pct}%` : item.pct >= 4 ? `${item.pct}%` : ""}
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginTop: 10,
+        }}
+      >
+        {normalized.map((item, index) => (
+          <div
+            key={`legend-${item.action}-${index}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "5px 9px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              fontSize: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                background: actionColor(item.action),
+              }}
+            />
+            <div>
+              {item.action}: {item.pct}%
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RangeMatrix({ reaction }: { reaction: string }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(13, 1fr)",
+        gap: 2,
+      }}
+    >
+      {RANKS.map((_, i) =>
+        RANKS.map((__, j) => {
+          const label = comboLabel(i, j);
+          const weight = getRangeWeight(label, reaction);
+          return (
+            <div
+              key={label}
+              title={`${label}: ${(weight * 100).toFixed(0)}%`}
+              style={{
+                aspectRatio: "1 / 1",
+                borderRadius: 6,
+                background: rangeColor(weight),
+                border: "1px solid rgba(255,255,255,0.06)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 10,
+                fontWeight: 700,
+                color: "white",
+                minHeight: 22,
+              }}
+            >
+              {label}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 function CardPicker({
   title,
   cards,
@@ -276,19 +469,19 @@ function CardPicker({
 
   return (
     <div style={softPanelStyle()}>
-      <div style={{ fontWeight: 700, marginBottom: 10 }}>{title}</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>{title}</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         {cards.slice(0, visibleSlots).map((card: string, i: number) => (
           <div
             key={i}
-            style={{ outline: slot === i ? `2px solid ${BRAND}` : "none", borderRadius: 16 }}
+            style={{ outline: slot === i ? `2px solid ${BRAND}` : "none", borderRadius: 14 }}
           >
             <Card card={card} onClick={() => setSlot(i)} />
           </div>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(13, 1fr)", gap: 6, marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(13, 1fr)", gap: 4, marginBottom: 6 }}>
         {RANKS.map((rank) => {
           const target = `${rank}${current[1] || "s"}`;
           const disabled = isCardUsed(target, heroCards, villainCards, board, hideVillainCards, current);
@@ -300,7 +493,7 @@ function CardPicker({
         })}
       </div>
 
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         {SUITS.map((s) => {
           const target = `${current[0] || "A"}${s}`;
           const disabled = isCardUsed(target, heroCards, villainCards, board, hideVillainCards, current);
@@ -346,12 +539,12 @@ function Seat({
       sideOffset?: number;
     }
   > = {
-    UTG: { cardMarginTop: 10, betMarginTop: 8 },
-    HJ: { cardMarginTop: 10, betMarginTop: 8, sideOffset: 18 },
-    CO: { cardMarginBottom: 10, betMarginTop: 8, sideOffset: 18 },
-    BTN: { cardMarginBottom: 10, betMarginTop: 8 },
-    SB: { cardMarginBottom: 10, betMarginTop: 8, sideOffset: -18 },
-    BB: { cardMarginTop: 10, betMarginTop: 8, sideOffset: -18 },
+    UTG: { cardMarginTop: 8, betMarginTop: 6 },
+    HJ: { cardMarginTop: 8, betMarginTop: 6, sideOffset: 16 },
+    CO: { cardMarginBottom: 8, betMarginTop: 6, sideOffset: 16 },
+    BTN: { cardMarginBottom: 8, betMarginTop: 6 },
+    SB: { cardMarginBottom: 8, betMarginTop: 6, sideOffset: -16 },
+    BB: { cardMarginTop: 8, betMarginTop: 6, sideOffset: -16 },
   };
 
   const layout = layoutMap[pos] || {};
@@ -359,7 +552,7 @@ function Seat({
     display: "flex",
     justifyContent: "center",
     gap: 4,
-    marginTop: layout.cardMarginTop ?? 8,
+    marginTop: layout.cardMarginTop ?? 6,
     marginBottom: layout.cardMarginBottom ?? 0,
     position: "relative",
     left: layout.sideOffset ?? 0,
@@ -367,7 +560,7 @@ function Seat({
   };
 
   const betBlockStyle: React.CSSProperties = {
-    marginTop: layout.betMarginTop ?? 8,
+    marginTop: layout.betMarginTop ?? 6,
     marginBottom: layout.betMarginBottom ?? 0,
     position: "relative",
     left: layout.sideOffset ?? 0,
@@ -383,12 +576,12 @@ function Seat({
         transform: "translate(-50%, -50%)",
         ...seat,
         textAlign: "center",
-        width: 140,
+        width: 132,
         pointerEvents: "auto",
         zIndex: 2,
       }}
     >
-      <div style={{ marginBottom: 6, fontSize: 12 }}>{pos}</div>
+      <div style={{ marginBottom: 4, fontSize: 11 }}>{pos}</div>
 
       <div
         draggable={isHero || isVillain}
@@ -397,8 +590,8 @@ function Seat({
           if (isVillain) onSeatDragStart("Villain");
         }}
         style={{
-          width: 66,
-          height: 66,
+          width: 60,
+          height: 60,
           borderRadius: "50%",
           background: seatFill,
           border: "2px dashed rgba(255,255,255,0.25)",
@@ -411,6 +604,7 @@ function Seat({
           boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
           cursor: isHero || isVillain ? "grab" : "default",
           userSelect: "none",
+          fontSize: 13,
         }}
       >
         {seatLabel}
@@ -430,13 +624,14 @@ function Seat({
             value={call}
             onChange={(e) => setCall(Number(e.target.value) || 0)}
             style={{
-              width: 74,
+              width: 70,
               borderRadius: 999,
               border: "1px solid #475569",
               background: "#111827",
               color: "white",
               textAlign: "center",
-              padding: "6px 10px",
+              padding: "5px 8px",
+              fontSize: 12,
             }}
           />
         </div>
@@ -448,8 +643,8 @@ function Seat({
 function Metric({ title, value }: { title: string; value: string }) {
   return (
     <div style={softPanelStyle()}>
-      <div style={{ color: "#94a3b8", fontSize: 12, letterSpacing: 2 }}>{title.toUpperCase()}</div>
-      <div style={{ marginTop: 10, fontSize: 28, fontWeight: 700 }}>{value}</div>
+      <div style={{ color: "#94a3b8", fontSize: 11, letterSpacing: 2 }}>{title.toUpperCase()}</div>
+      <div style={{ marginTop: 6, fontSize: 24, fontWeight: 700 }}>{value}</div>
     </div>
   );
 }
@@ -457,8 +652,8 @@ function Metric({ title, value }: { title: string; value: string }) {
 function Panel({ title, comment, children }: any) {
   return (
     <div style={softPanelStyle()}>
-      <div style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>{title}</div>
-      {comment && <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 14 }}>{comment}</div>}
+      <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6 }}>{title}</div>
+      {comment && <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>{comment}</div>}
       {children}
     </div>
   );
@@ -484,6 +679,8 @@ export default function App() {
   const [savedSpots, setSavedSpots] = useState<SavedSpot[]>([]);
 
   const visibleBoardSlots = streetBoardCount(street);
+
+  const rangeMatrix = useMemo(() => reaction, [reaction]);
 
   useEffect(() => {
     try {
@@ -622,44 +819,44 @@ export default function App() {
     : [];
 
   return (
-    <div style={{ padding: 24, background: BG, color: "white", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
+    <div style={{ padding: 18, background: BG, color: "white", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: 1500, margin: "0 auto" }}>
         <div
           style={{
-            padding: 24,
-            borderRadius: 32,
+            padding: 18,
+            borderRadius: 26,
             background: `linear-gradient(135deg, rgba(34,211,238,0.12), rgba(139,92,246,0.10), rgba(34,197,94,0.10))`,
             border: "1px solid rgba(255,255,255,0.08)",
-            marginBottom: 22,
+            marginBottom: 16,
           }}
         >
-          <div style={{ fontSize: 12, letterSpacing: 3, color: "#93c5fd", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, letterSpacing: 3, color: "#93c5fd", marginBottom: 8 }}>
             RIVERGTO
           </div>
-          <h1 style={{ fontSize: 36, margin: 0 }}>
+          <h1 style={{ fontSize: 30, margin: 0 }}>
             Interactive poker solver and range lab
           </h1>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 22, marginBottom: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 16, marginBottom: 16 }}>
           <div style={softPanelStyle()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div>
-                <div style={{ fontSize: 24, fontWeight: 700 }}>Interactive table</div>
-                <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 6 }}>
-                  Hide villain cards to solve like a real hand without knowing the opponent’s exact holdings.
+                <div style={{ fontSize: 20, fontWeight: 700 }}>Interactive table</div>
+                <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
+                  Hide villain cards to solve like a real hand without knowing exact holdings.
                 </div>
               </div>
               <button onClick={runSolve} style={pill(true)}>Run Solve</button>
             </div>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
               {REACTIONS.map((r) => (
                 <button key={r} onClick={() => setReaction(r)} style={pill(reaction === r)}>{r}</button>
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
               {STREETS.map((s) => (
                 <button key={s} onClick={() => setStreet(s)} style={pill(street === s)}>
                   {s}
@@ -678,11 +875,11 @@ export default function App() {
             <div
               style={{
                 position: "relative",
-                height: 700,
-                borderRadius: 260,
+                height: 580,
+                borderRadius: 220,
                 background: "radial-gradient(circle, #166534, #052e16)",
                 overflow: "visible",
-                paddingBottom: 40,
+                paddingBottom: 24,
               }}
             >
               <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: "74%", height: "70%", borderRadius: 999, border: "1px solid rgba(255,255,255,0.08)" }} />
@@ -713,16 +910,16 @@ export default function App() {
                   textAlign: "center",
                 }}
               >
-                <div style={{ padding: 14, borderRadius: 24, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.22)", minWidth: 120 }}>
-                  <div style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", color: "#fde68a" }}>Pot</div>
+                <div style={{ padding: 12, borderRadius: 20, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.22)", minWidth: 108 }}>
+                  <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#fde68a" }}>Pot</div>
                   <input
                     type="number"
                     value={pot}
                     onChange={(e) => setPot(Number(e.target.value) || 0)}
-                    style={{ width: 88, marginTop: 8, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "#111827", color: "white", textAlign: "center", padding: "8px 10px" }}
+                    style={{ width: 82, marginTop: 6, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "#111827", color: "white", textAlign: "center", padding: "7px 8px" }}
                   />
                 </div>
-                <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 12 }}>
                   {board.slice(0, visibleBoardSlots).map((c, i) => (
                     <Card key={i} card={c} />
                   ))}
@@ -731,7 +928,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 18 }}>
+          <div style={{ display: "grid", gap: 12 }}>
             <CardPicker
               title="Hero hand picker"
               cards={heroCards}
@@ -767,16 +964,20 @@ export default function App() {
               visibleSlots={visibleBoardSlots}
             />
 
+            <Panel title="Range matrix" comment="Compact range grid so the page leaves more open space for auto ads.">
+              <RangeMatrix reaction={rangeMatrix} />
+            </Panel>
+
             <Panel title="Save / Load hands" comment="Saved spots stay on this browser so you can revisit the same setup quickly.">
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input
                   value={savedName}
                   onChange={(e) => setSavedName(e.target.value)}
-                  style={{ flex: 1, borderRadius: 999, border: "1px solid #475569", background: "#111827", color: "white", padding: "10px 14px" }}
+                  style={{ flex: 1, borderRadius: 999, border: "1px solid #475569", background: "#111827", color: "white", padding: "9px 12px", fontSize: 12 }}
                 />
                 <button onClick={saveSpot} style={pill(true)}>Save</button>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {savedSpots.map((spot, i) => (
                   <button key={`${spot.name}-${i}`} onClick={() => loadSpot(spot)} style={pill(false)}>
                     {spot.name}
@@ -788,32 +989,32 @@ export default function App() {
         </div>
 
         {result?.error && (
-          <div style={{ ...softPanelStyle(), color: "#f87171", marginBottom: 22 }}>
+          <div style={{ ...softPanelStyle(), color: "#f87171", marginBottom: 14 }}>
             Backend error: {result.error}
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 14 }}>
           <Metric title="Recommendation" value={result?.recommendation || "-"} />
           <Metric title="Equity" value={typeof result?.equity === "number" ? `${(result.equity * 100).toFixed(1)}%` : "-"} />
           <Metric title="Pot Odds" value={`${((call / (pot + call || 1)) * 100).toFixed(1)}%`} />
           <Metric title="Street" value={street} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginBottom: 22 }}>
-          <Panel title="Bet-size-specific outputs" comment="These show approximate response frequencies for different bet sizes at the current node.">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <Panel title="Bet-size-specific outputs" comment="Compact output cards to reduce wasted panel height.">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 12 }}>
               {(result?.betSizes || BET_SIZES.map((x) => ({ action: `${x}%`, freq: 0 }))).map((item: any) => (
-                <div key={item.action} style={{ padding: 16, borderRadius: 24, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <div style={{ fontSize: 12, letterSpacing: 2, color: "#94a3b8" }}>{item.action}</div>
-                  <div style={{ marginTop: 8, fontSize: 28, fontWeight: 700 }}>{Math.round(item.freq)}%</div>
-                  <div style={{ height: 10, borderRadius: 999, background: "rgba(255,255,255,0.08)", marginTop: 10 }}>
+                <div key={item.action} style={{ padding: 12, borderRadius: 18, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div style={{ fontSize: 11, letterSpacing: 2, color: "#94a3b8" }}>{item.action}</div>
+                  <div style={{ marginTop: 6, fontSize: 22, fontWeight: 700 }}>{Math.round(item.freq)}%</div>
+                  <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", marginTop: 8 }}>
                     <div style={{ width: `${Math.min(100, Math.max(0, item.freq))}%`, height: "100%", borderRadius: 999, background: `linear-gradient(90deg,${BRAND},${BRAND_2})` }} />
                   </div>
                 </div>
               ))}
             </div>
-            <div style={{ height: 260 }}>
+            <div style={{ height: 210 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={result?.betSizes || []}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -826,23 +1027,15 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="Action mix and outcomes" comment="Use this to compare the overall fold/call/raise blend against win/loss/tie distribution.">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div style={{ height: 240 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={result?.actionMix || []}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="action" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="freq" fill={BRAND_2} radius={[10, 10, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+          <Panel title="Action mix and outcomes" comment="The action mix is normalized to exactly 100% and shown as one stacked bar.">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <ActionMixStackedBar actionMix={result?.actionMix || []} />
               </div>
-              <div style={{ height: 240 }}>
+              <div style={{ height: 210 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={85}>
+                    <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={72}>
                       {pieData.map((entry, i) => (
                         <Cell key={entry.name} fill={[BRAND, "#ef4444", "#f59e0b"][i]} />
                       ))}
@@ -855,9 +1048,9 @@ export default function App() {
           </Panel>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginBottom: 22 }}>
-          <Panel title="Convergence" comment="This shows how the equity estimate stabilizes as more simulations are added.">
-            <div style={{ height: 280 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <Panel title="Convergence" comment="Reduced height to leave more free layout space.">
+            <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.convergence || []}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -870,8 +1063,8 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="EV curve" comment="This is a street-by-street approximation, not a full recursive equilibrium EV tree.">
-            <div style={{ height: 280 }}>
+          <Panel title="EV curve" comment="Compact chart height for a denser layout.">
+            <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.evCurve || []}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -885,8 +1078,8 @@ export default function App() {
           </Panel>
         </div>
 
-        <Panel title="Multi-player tree preview" comment="This is a branch preview of how the hand likely reached the current spot.">
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <Panel title="Multi-player tree preview" comment="Compact branch preview.">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {(result?.multiTree || []).map((step: string, i: number) => (
               <div key={i} style={{ ...pill(false), background: "rgba(255,255,255,0.06)" }}>
                 {i + 1}. {step}
