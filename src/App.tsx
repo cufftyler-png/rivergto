@@ -23,7 +23,6 @@ const STORAGE_KEY = "rivergto_saved_spots_v1";
 const BRAND = "#22D3EE";
 const BRAND_2 = "#8B5CF6";
 const BG = "#020617";
-
 const API_BASE_URL = "https://rivergto.onrender.com";
 
 const SEAT_POS: Record<string, { left: string; top: string }> = {
@@ -417,10 +416,10 @@ function Seat({
         {seatLabel}
       </div>
 
-      {cards.length > 0 && (
+      {(isHero || (isVillain && !hideVillainCards)) && cards.length > 0 && (
         <div style={cardBlockStyle}>
           {cards.map((c: string, i: number) => (
-            <Card key={i} card={c} faceDown={isVillain && hideVillainCards} />
+            <Card key={i} card={c} />
           ))}
         </div>
       )}
@@ -584,6 +583,8 @@ export default function App() {
   }
 
   async function runSolve() {
+    const villainCardsForSolve = hideVillainCards ? [] : villainCards;
+
     const payload = {
       heroPos,
       villainPos,
@@ -591,7 +592,7 @@ export default function App() {
       pot,
       callAmount: call,
       heroCards,
-      villainCards: hideVillainCards ? [] : villainCards,
+      villainCards: villainCardsForSolve,
       boardCards: board.slice(0, visibleBoardSlots).filter(Boolean),
       betSizes: BET_SIZES,
       playerCount: reaction === "Open" ? 2 : reaction === "3-Bet" ? 3 : 4,
@@ -646,7 +647,7 @@ export default function App() {
               <div>
                 <div style={{ fontSize: 24, fontWeight: 700 }}>Interactive table</div>
                 <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 6 }}>
-                  Drag the actual Hero and Villain chips on the table to new seats.
+                  Hide villain cards to solve like a real hand without knowing the opponent’s exact holdings.
                 </div>
               </div>
               <button onClick={runSolve} style={pill(true)}>Run Solve</button>
@@ -666,9 +667,11 @@ export default function App() {
               ))}
               <button onClick={nextStreet} style={pill(false)}>Advance hand</button>
               <button onClick={randomizeBoard} style={pill(false)}>Randomize board</button>
-              <button onClick={randomizeVillain} style={pill(false)}>Randomize villain</button>
+              {!hideVillainCards && (
+                <button onClick={randomizeVillain} style={pill(false)}>Randomize villain</button>
+              )}
               <button onClick={() => setHideVillainCards((v) => !v)} style={pill(hideVillainCards)}>
-                {hideVillainCards ? "Show villain" : "Hide villain"}
+                {hideVillainCards ? "Use range solve" : "Use exact villain cards"}
               </button>
             </div>
 
@@ -739,16 +742,20 @@ export default function App() {
               hideVillainCards={hideVillainCards}
               visibleSlots={2}
             />
-            <CardPicker
-              title="Villain hand picker"
-              cards={villainCards}
-              onPick={pickVillain}
-              heroCards={heroCards}
-              villainCards={villainCards}
-              board={board}
-              hideVillainCards={hideVillainCards}
-              visibleSlots={2}
-            />
+
+            {!hideVillainCards && (
+              <CardPicker
+                title="Villain hand picker"
+                cards={villainCards}
+                onPick={pickVillain}
+                heroCards={heroCards}
+                villainCards={villainCards}
+                board={board}
+                hideVillainCards={hideVillainCards}
+                visibleSlots={2}
+              />
+            )}
+
             <CardPicker
               title={`Board picker (${street})`}
               cards={board}
