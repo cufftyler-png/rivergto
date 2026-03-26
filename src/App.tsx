@@ -351,12 +351,12 @@ function ActionMixStackedBar({
               color: "white",
               fontWeight: 700,
               fontSize: 12,
-              minWidth: item.pct > 0 ? 38 : 0,
+              minWidth: item.pct > 0 ? 28 : 0,
               whiteSpace: "nowrap",
             }}
             title={`${item.action}: ${item.pct}%`}
           >
-            {item.pct >= 8 ? `${item.action} ${item.pct}%` : item.pct >= 4 ? `${item.pct}%` : ""}
+            {item.pct >= 6 ? `${item.pct}%` : ""}
           </div>
         ))}
       </div>
@@ -470,6 +470,10 @@ function CardPicker({
   return (
     <div style={softPanelStyle()}>
       <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>{title}</div>
+      <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 8 }}>
+        Click a card slot first, then choose its rank and suit below.
+      </div>
+
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         {cards.slice(0, visibleSlots).map((card: string, i: number) => (
           <div
@@ -525,6 +529,7 @@ function Seat({
   const isHero = pos === heroPos;
   const isVillain = pos === villainPos;
   const cards = isHero ? heroCards : isVillain ? villainCards : [];
+  const isInteractive = isHero || isVillain;
 
   const seatFill = isHero ? BRAND : isVillain ? "#ef4444" : "#0f172a";
   const seatLabel = isHero ? "Hero" : isVillain ? "Villain" : "";
@@ -584,28 +589,37 @@ function Seat({
       <div style={{ marginBottom: 4, fontSize: 11 }}>{pos}</div>
 
       <div
-        draggable={isHero || isVillain}
+        draggable={isInteractive}
         onDragStart={() => {
           if (isHero) onSeatDragStart("Hero");
           if (isVillain) onSeatDragStart("Villain");
         }}
         style={{
-          width: 60,
-          height: 60,
+          width: isInteractive ? 64 : 60,
+          height: isInteractive ? 64 : 60,
           borderRadius: "50%",
-          background: seatFill,
-          border: "2px dashed rgba(255,255,255,0.25)",
+          background: isInteractive
+            ? `linear-gradient(135deg, ${seatFill}, rgba(255,255,255,0.15))`
+            : seatFill,
+          border: isInteractive
+            ? "2px solid rgba(255,255,255,0.32)"
+            : "2px dashed rgba(255,255,255,0.25)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           color: "white",
           fontWeight: 700,
           margin: "0 auto",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
-          cursor: isHero || isVillain ? "grab" : "default",
+          boxShadow: isInteractive
+            ? "0 0 0 4px rgba(255,255,255,0.05), 0 10px 24px rgba(0,0,0,0.32)"
+            : "0 8px 20px rgba(0,0,0,0.25)",
+          cursor: isInteractive ? "grab" : "default",
           userSelect: "none",
           fontSize: 13,
+          transition: "transform 120ms ease, box-shadow 120ms ease, filter 120ms ease",
+          filter: isInteractive ? "brightness(1.06)" : "none",
         }}
+        title={isInteractive ? "Drag this token to another seat." : undefined}
       >
         {seatLabel}
       </div>
@@ -674,12 +688,15 @@ export default function App() {
   const [call, setCall] = useState(50);
   const [hideVillainCards, setHideVillainCards] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [isSolving, setIsSolving] = useState(false);
+  const [solveProgress, setSolveProgress] = useState(0);
+  const [solveHover, setSolveHover] = useState(false);
+  const [solvePress, setSolvePress] = useState(false);
 
   const [savedName, setSavedName] = useState("My Spot");
   const [savedSpots, setSavedSpots] = useState<SavedSpot[]>([]);
 
   const visibleBoardSlots = streetBoardCount(street);
-
   const rangeMatrix = useMemo(() => reaction, [reaction]);
 
   useEffect(() => {
@@ -696,6 +713,21 @@ export default function App() {
   useEffect(() => {
     setBoard((prev) => clampBoardToStreet(prev, street));
   }, [street]);
+
+  useEffect(() => {
+    if (!isSolving) return;
+
+    setSolveProgress(6);
+    const id = window.setInterval(() => {
+      setSolveProgress((prev) => {
+        if (prev >= 88) return prev;
+        const step = prev < 35 ? 9 : prev < 60 ? 6 : prev < 78 ? 3 : 1;
+        return Math.min(88, prev + step);
+      });
+    }, 180);
+
+    return () => window.clearInterval(id);
+  }, [isSolving]);
 
   function onDrop(pos: string) {
     if (drag === "Hero") {
@@ -796,6 +828,9 @@ export default function App() {
       street,
     };
 
+    setIsSolving(true);
+    setSolveProgress(6);
+
     try {
       const res = await fetch(`${API_BASE_URL}/solve`, {
         method: "POST",
@@ -804,9 +839,19 @@ export default function App() {
       });
 
       const json = await res.json();
-      setResult(json);
+      setSolveProgress(100);
+      setTimeout(() => {
+        setResult(json);
+        setIsSolving(false);
+        setSolveProgress(0);
+      }, 180);
     } catch {
-      setResult({ error: "Backend not reachable." });
+      setSolveProgress(100);
+      setTimeout(() => {
+        setResult({ error: "Backend not reachable." });
+        setIsSolving(false);
+        setSolveProgress(0);
+      }, 180);
     }
   }
 
@@ -817,6 +862,17 @@ export default function App() {
         { name: "Tie", value: result.ties || 0 },
       ]
     : [];
+
+  const solveButtonStyle: React.CSSProperties = {
+    ...pill(true),
+    transform: solvePress ? "translateY(1px) scale(0.985)" : solveHover ? "translateY(-1px) scale(1.015)" : "scale(1)",
+    boxShadow: solveHover
+      ? "0 10px 24px rgba(34,211,238,0.26)"
+      : "0 6px 14px rgba(34,211,238,0.14)",
+    transition: "transform 120ms ease, box-shadow 120ms ease, filter 120ms ease",
+    filter: solveHover ? "brightness(1.05)" : "none",
+    opacity: isSolving ? 0.9 : 1,
+  };
 
   return (
     <div style={{ padding: 18, background: BG, color: "white", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
@@ -836,6 +892,9 @@ export default function App() {
           <h1 style={{ fontSize: 30, margin: 0 }}>
             Interactive poker solver and range lab
           </h1>
+          <div style={{ color: "#cbd5e1", fontSize: 13, marginTop: 8 }}>
+            Build a spot, run a solve, and read the output like a clean GTO study board.
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 16, marginBottom: 16 }}>
@@ -844,16 +903,63 @@ export default function App() {
               <div>
                 <div style={{ fontSize: 20, fontWeight: 700 }}>Interactive table</div>
                 <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
-                  Hide villain cards to solve like a real hand without knowing exact holdings.
+                  Drag Hero and Villain to their seats, set the street and stack pressure, then run the solve.
                 </div>
               </div>
-              <button onClick={runSolve} style={pill(true)}>Run Solve</button>
+              <button
+                onClick={runSolve}
+                disabled={isSolving}
+                onMouseEnter={() => setSolveHover(true)}
+                onMouseLeave={() => {
+                  setSolveHover(false);
+                  setSolvePress(false);
+                }}
+                onMouseDown={() => setSolvePress(true)}
+                onMouseUp={() => setSolvePress(false)}
+                style={solveButtonStyle}
+              >
+                {isSolving ? "Solving..." : "Run Solve"}
+              </button>
             </div>
+
+            {isSolving && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 6 }}>
+                  Running the sim and weighting the range tree...
+                </div>
+                <div
+                  style={{
+                    width: "100%",
+                    height: 10,
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.08)",
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${solveProgress}%`,
+                      height: "100%",
+                      borderRadius: 999,
+                      background: `linear-gradient(90deg, ${BRAND}, ${BRAND_2})`,
+                      transition: "width 140ms ease",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
               {REACTIONS.map((r) => (
-                <button key={r} onClick={() => setReaction(r)} style={pill(reaction === r)}>{r}</button>
+                <button key={r} onClick={() => setReaction(r)} style={pill(reaction === r)}>
+                  {r}
+                </button>
               ))}
+            </div>
+
+            <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
+              Choose the node you are studying. For example, a 3-bet node means you are solving the response after the re-raise.
             </div>
 
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
@@ -870,6 +976,10 @@ export default function App() {
               <button onClick={() => setHideVillainCards((v) => !v)} style={pill(hideVillainCards)}>
                 {hideVillainCards ? "Use range solve" : "Use exact villain cards"}
               </button>
+            </div>
+
+            <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
+              Use range solve when you want a more realistic in-game read and exact cards when you want to inspect one specific holding.
             </div>
 
             <div
@@ -919,7 +1029,10 @@ export default function App() {
                     style={{ width: 82, marginTop: 6, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "#111827", color: "white", textAlign: "center", padding: "7px 8px" }}
                   />
                 </div>
-                <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 12 }}>
+                <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 8 }}>
+                  Community cards update by street, so pre-flop stays clean and later streets fill in naturally.
+                </div>
+                <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
                   {board.slice(0, visibleBoardSlots).map((c, i) => (
                     <Card key={i} card={c} />
                   ))}
@@ -964,11 +1077,11 @@ export default function App() {
               visibleSlots={visibleBoardSlots}
             />
 
-            <Panel title="Range matrix" comment="Villain range chart">
+            <Panel title="Range matrix" comment="This is a compact range map so you can quickly see which holdings stay live at the current node.">
               <RangeMatrix reaction={rangeMatrix} />
             </Panel>
 
-            <Panel title="Save / Load hands" comment="Saved spots stay on this browser so you can revisit the same setup quickly.">
+            <Panel title="Save / Load hands" comment="Save a study spot when you want to revisit a line later or compare a few branches side by side.">
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input
                   value={savedName}
@@ -1002,7 +1115,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Panel title="Bet-size-specific outputs" comment="What sizing you should use">
+          <Panel title="Bet-size-specific outputs" comment="These percentages show how your strategy mix shifts as the sizing changes.">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 12 }}>
               {(result?.betSizes || BET_SIZES.map((x) => ({ action: `${x}%`, freq: 0 }))).map((item: any) => (
                 <div key={item.action} style={{ padding: 12, borderRadius: 18, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1027,7 +1140,7 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="Action mix and outcomes" comment="How often you should bet, check or fold">
+          <Panel title="Action mix and outcomes" comment="The bar is normalized to exactly 100%, while the legend keeps the action names clean and easy to scan.">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <ActionMixStackedBar actionMix={result?.actionMix || []} />
@@ -1049,7 +1162,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Panel title="Convergence" comment="Frequently choosing the best option converges to net positive winnings">
+          <Panel title="Convergence" comment="This gives you a feel for whether the sim has stabilized or still has room to settle.">
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.convergence || []}>
@@ -1063,7 +1176,7 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="EV curve" comment="">
+          <Panel title="EV curve" comment="Think of this as a clean street-by-street EV snapshot rather than a full game-tree proof.">
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.evCurve || []}>
@@ -1078,7 +1191,7 @@ export default function App() {
           </Panel>
         </div>
 
-        <Panel title="Multi-player tree preview" comment="">
+        <Panel title="Multi-player tree preview" comment="This preview helps newer players understand how the line likely developed before the current decision.">
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {(result?.multiTree || []).map((step: string, i: number) => (
               <div key={i} style={{ ...pill(false), background: "rgba(255,255,255,0.06)" }}>
