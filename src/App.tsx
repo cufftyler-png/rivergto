@@ -964,7 +964,7 @@ export default function App() {
               visibleSlots={visibleBoardSlots}
             />
 
-            <Panel title="Range matrix" comment="Compact range grid so the page leaves more open space for auto ads.">
+            <Panel title="Range matrix" comment="Villain range chart">
               <RangeMatrix reaction={rangeMatrix} />
             </Panel>
 
@@ -1002,7 +1002,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Panel title="Bet-size-specific outputs" comment="Compact output cards to reduce wasted panel height.">
+          <Panel title="Bet-size-specific outputs" comment="What sizing you should use">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 12 }}>
               {(result?.betSizes || BET_SIZES.map((x) => ({ action: `${x}%`, freq: 0 }))).map((item: any) => (
                 <div key={item.action} style={{ padding: 12, borderRadius: 18, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1027,7 +1027,7 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="Action mix and outcomes" comment="The action mix is normalized to exactly 100% and shown as one stacked bar.">
+          <Panel title="Action mix and outcomes" comment="How often you should bet, check or fold">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <ActionMixStackedBar actionMix={result?.actionMix || []} />
@@ -1049,7 +1049,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Panel title="Convergence" comment="Reduced height to leave more free layout space.">
+          <Panel title="Convergence" comment="Frequently choosing the best option converges to net positive winnings">
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.convergence || []}>
@@ -1063,7 +1063,7 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel title="EV curve" comment="Compact chart height for a denser layout.">
+          <Panel title="EV curve" comment="">
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={result?.evCurve || []}>
@@ -1078,7 +1078,7 @@ export default function App() {
           </Panel>
         </div>
 
-        <Panel title="Multi-player tree preview" comment="Compact branch preview.">
+        <Panel title="Multi-player tree preview" comment="">
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {(result?.multiTree || []).map((step: string, i: number) => (
               <div key={i} style={{ ...pill(false), background: "rgba(255,255,255,0.06)" }}>
