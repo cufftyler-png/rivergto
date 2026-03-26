@@ -442,7 +442,7 @@ function ModeSwitch({
   hideVillainCards: boolean;
   onToggle: () => void;
 }) {
-  const nextLabel = hideVillainCards ? "Use exact villain cards" : "Use range solve";
+  const nextLabel = hideVillainCards ? "Using range solve" : "Using exact villain cards";
 
   return (
     <button
